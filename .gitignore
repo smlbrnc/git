@@ -1,0 +1,28 @@
+# Ortam ve gizlilik (SOP: .env git'e eklenmez)
+.env
+.env.local
+.env.*.local
+
+# Log ve veri
+logs/
+*.log
+data/manual_review_queue.json
+data/metrics.json
+data/metrics_history.json
+data/alert_history.json
+data/event_history.json
+config/execution_mode.json
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.env.venv
+
+# Gurobi lisans (hassas)
+*.lic
+
+# Streamlit (proje .streamlit; config.toml repoda kalır)
+.streamlit/*
+!.streamlit/config.toml

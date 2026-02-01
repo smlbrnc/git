@@ -1,0 +1,9 @@
+# Risk parametreleri (opsiyonel override)
+# .env veya optimization_layer3/execution ile birlikte kullanılır.
+# Pipeline: load_yaml("risk_params") ile önce buna bakar, yoksa cfg_l3/env kullanır.
+
+min_profit_margin_usd: 0.05
+min_liquidity_per_leg_usd: 100
+max_position_usd: 5000
+max_drawdown_pct: 15
+max_slippage_pct: 2.0
