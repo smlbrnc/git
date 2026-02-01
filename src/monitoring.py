@@ -9,9 +9,11 @@ sys.path.insert(0, str(ROOT))
 METRICS_PATH = ROOT / "data" / "metrics.json"
 HISTORY_PATH = ROOT / "data" / "metrics_history.json"
 EVENT_HISTORY_PATH = ROOT / "data" / "event_history.json"
+PIPELINE_RUNS_PATH = ROOT / "data" / "pipeline_runs.json"
 MAX_TIMESTAMPS = 120
 MAX_HISTORY = 500
 MAX_EVENT_HISTORY = 100
+MAX_PIPELINE_RUNS = 30
 
 
 def _load():
@@ -82,6 +84,36 @@ def get_event_history(limit=50):
         with open(EVENT_HISTORY_PATH) as f:
             events = json.load(f)
         return (events[-limit:] if isinstance(events, list) else [])[::-1]
+    except Exception:
+        return []
+
+
+def record_pipeline_run(status, message=None):
+    """Pipeline çalıştırmasını kaydeder (kontrol/sorgu yapıldığına dair). status: running|ok|no_dependency|no_arbitrage|validation_failed|error."""
+    try:
+        PIPELINE_RUNS_PATH.parent.mkdir(parents=True, exist_ok=True)
+        runs = []
+        if PIPELINE_RUNS_PATH.exists():
+            with open(PIPELINE_RUNS_PATH) as f:
+                runs = json.load(f)
+        ts = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+        runs.append({"ts": ts, "status": status, "message": message or ""})
+        if len(runs) > MAX_PIPELINE_RUNS:
+            runs = runs[-MAX_PIPELINE_RUNS:]
+        with open(PIPELINE_RUNS_PATH, "w") as f:
+            json.dump(runs, f, indent=0, ensure_ascii=False)
+    except Exception:
+        pass
+
+
+def get_pipeline_runs(limit=15):
+    """Son N pipeline çalıştırmasını döner (yeniden eskiye)."""
+    if not PIPELINE_RUNS_PATH.exists():
+        return []
+    try:
+        with open(PIPELINE_RUNS_PATH) as f:
+            runs = json.load(f)
+        return (runs[-limit:] if isinstance(runs, list) else [])[::-1]
     except Exception:
         return []
 

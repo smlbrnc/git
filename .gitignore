@@ -11,6 +11,7 @@ data/metrics.json
 data/metrics_history.json
 data/alert_history.json
 data/event_history.json
+data/pipeline_runs.json
 config/execution_mode.json
 
 # Python

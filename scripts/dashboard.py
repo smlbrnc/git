@@ -18,7 +18,7 @@ import streamlit as st
 import pandas as pd
 
 from src.config_loader import load_env, load_yaml, save_risk_params, save_monitoring_alerts
-from src.monitoring import get_metrics, get_metrics_history, get_event_history
+from src.monitoring import get_metrics, get_metrics_history, get_event_history, get_pipeline_runs
 from src.manual_review_queue import get_all, approve, reject
 from src.execution_mode import get_mode, set_mode
 from src.alerts import get_alert_history
@@ -82,6 +82,15 @@ def render_dashboard():
         set_mode(new_mode)
         st.rerun()
     st.info(f"**İşlem modu:** {mode.upper()}")
+
+    st.subheader("Kontrol ve sorgu durumu")
+    runs = get_pipeline_runs(15)
+    if runs:
+        st.caption("Pipeline çalıştırmaları (kontrol/sorgu yapıldığına dair son kayıtlar)")
+        rows = [{"Zaman": r.get("ts"), "Durum": r.get("status"), "Mesaj": r.get("message") or ""} for r in runs]
+        st.dataframe(pd.DataFrame(rows), width="stretch")
+    else:
+        st.caption("Henüz pipeline çalıştırılmadı. scripts/run_arbitrage_pipeline.py veya cron/loop ile tetikleyin.")
 
     m = get_metrics()
     col1, col2, col3, col4, col5, col6 = st.columns(6)

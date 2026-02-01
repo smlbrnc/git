@@ -2,7 +2,23 @@
 
 **İlgili:** SOP-Polymarket-Arbitrage-Project.md §4.6.3, plan: pipeline tetikleme.
 
-Pipeline tek seferlik çalışır; otomatik işlem için periyodik tetikleme gerekir. İki yöntem:
+Pipeline tek seferlik çalışır; otomatik işlem için periyodik tetikleme gerekir.
+
+## Projeyi tek komutla başlatma (dashboard + pipeline)
+
+Proje çalışırken pipeline her zaman döngüde olacak şekilde başlatmak için:
+
+```bash
+./scripts/run_all.sh
+```
+
+Bu komut pipeline döngüsünü arka planda başlatır (varsayılan 60 sn aralık), ardından dashboard'u açar. Ctrl+C ile ikisi de durur. Pipeline logları: `logs/pipeline_loop.log`. Aralığı değiştirmek: `PIPELINE_INTERVAL_SEC=120 ./scripts/run_all.sh`
+
+**Not:** Tarayıcı sekmesi kapatıldığında veya sayfa yenilendiğinde terminalde `WebSocketClosedError` / "Task exception was never retrieved" görünebilir; uygulama etkilenmez, yok sayılabilir.
+
+---
+
+## Diğer yöntemler
 
 ## 1. Cron ile periyodik çalıştırma
 
