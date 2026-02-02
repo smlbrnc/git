@@ -3,6 +3,7 @@
  * Strategy: Buy both sides (UP and DOWN) when total cost < threshold to lock in profit.
  */
 
+import { EventEmitter } from "events";
 import type { Settings } from "./config";
 import type { MarketInfo } from "./marketLookup";
 import { fetchMarketFromSlug, getActiveBtc15mSlug } from "./marketLookup";
@@ -42,7 +43,7 @@ function sleep(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));
 }
 
-export class Btc15mArbBot {
+export class Btc15mArbBot extends EventEmitter {
   settings: Settings;
   marketSlug: string;
   marketId: string;
@@ -58,8 +59,14 @@ export class Btc15mArbBot {
   simBalance: number;
   simStartBalance: number;
   private _lastExecutionTs = 0;
+  private _stopRequested = false;
+
+  stop(): void {
+    this._stopRequested = true;
+  }
 
   constructor(settings: Settings, slug: string, info: MarketInfo) {
+    super();
     this.settings = settings;
     this.marketSlug = slug;
     this.marketId = info.marketId;
@@ -207,7 +214,7 @@ export class Btc15mArbBot {
     const expectedPayout = 1 * orderSize;
     const expectedProfit = expectedPayout - investment;
 
-    return {
+    const opportunity: Opportunity = {
       price_up: limitPriceUp,
       price_down: limitPriceDown,
       total_cost: totalCost,
@@ -223,6 +230,8 @@ export class Btc15mArbBot {
       vwap_down: fillDown.vwap,
       timestamp: new Date().toISOString(),
     };
+    this.emit("opportunity_found", opportunity);
+    return opportunity;
   }
 
   async executeArbitrage(opportunity: Opportunity): Promise<void> {
@@ -255,6 +264,7 @@ export class Btc15mArbBot {
     if (this.settings.dryRun) {
       if (this.simBalance < opportunity.total_investment) {
         console.error(`Insufficient simulated balance: need $${opportunity.total_investment.toFixed(2)} but have $${this.simBalance.toFixed(2)}`);
+        this.emit("trade_failed", { opportunity, error: "Insufficient simulated balance" });
         return;
       }
       this.simBalance -= opportunity.total_investment;
@@ -262,20 +272,30 @@ export class Btc15mArbBot {
       this.totalSharesBought += opportunity.order_size * 2;
       this.positions.push(opportunity);
       this.tradesExecuted += 1;
+      this.emit("trade_executed", {
+        opportunity,
+        orderIds: ["dry-run-up", "dry-run-down"],
+        timestamp: new Date().toISOString(),
+      });
       return;
     }
 
+    const minSizeForValue = Math.ceil(1 / Math.min(opportunity.price_up, opportunity.price_down));
+    const size = Math.max(Number(opportunity.order_size), minSizeForValue);
+    const actualInvestment = opportunity.total_cost * size;
     let currentBalance = this.cachedBalance ?? (await this.getBalance());
     this.cachedBalance = currentBalance;
-    const required = opportunity.total_investment * 1.2;
+    const required = actualInvestment * 1.2;
     if (currentBalance < required) {
       console.error(`Insufficient balance: need $${required.toFixed(2)} but have $${currentBalance.toFixed(2)}`);
+      this.emit("trade_failed", { opportunity, error: "Insufficient balance" });
       return;
     }
 
+    // Polymarket: emir tutarı en az $1 olmalı (min size: $1)
     const orders: OrderSpec[] = [
-      { side: "BUY", token_id: this.yesTokenId, price: opportunity.price_up, size: opportunity.order_size },
-      { side: "BUY", token_id: this.noTokenId, price: opportunity.price_down, size: opportunity.order_size },
+      { side: "BUY", token_id: this.yesTokenId, price: opportunity.price_up, size },
+      { side: "BUY", token_id: this.noTokenId, price: opportunity.price_down, size },
     ];
     const orderType = this.settings.orderType || "GTC";
     const results = await placeOrdersFast(this.settings, orders, orderType);
@@ -309,44 +329,69 @@ export class Btc15mArbBot {
       console.error("    3. API anahtarlarını bu ayarlarla YENİDEN oluşturun: npm run create-api-keys");
       console.error("       Sonra .env içindeki POLYMARKET_API_KEY, SECRET, PASSPHRASE değerlerini güncelleyin.");
       console.error("");
+      this.emit("trade_failed", { opportunity, error: "Invalid signature" });
       return;
     }
 
-    if (!orderIds[0] || !orderIds[1]) {
-      console.error("Could not extract both order ids. results:", JSON.stringify(results).slice(0, 500));
+    if (!orderIds[0] && !orderIds[1]) {
+      console.error("Her iki emir de reddedildi. API yanıtı:", JSON.stringify(results, null, 2));
+      this.emit("trade_failed", { opportunity, error: "Both orders rejected", results });
       return;
     }
 
-    const reqSize = Number(opportunity.order_size);
-    const upState = await waitForTerminalOrder(this.settings, orderIds[0]!, { requestedSize: reqSize });
-    const downState = await waitForTerminalOrder(this.settings, orderIds[1]!, { requestedSize: reqSize });
+    const upState = orderIds[0]
+      ? await waitForTerminalOrder(this.settings, orderIds[0], { requestedSize: size })
+      : { filled: false as const, filled_size: 0 };
+    const downState = orderIds[1]
+      ? await waitForTerminalOrder(this.settings, orderIds[1], { requestedSize: size })
+      : { filled: false as const, filled_size: 0 };
 
     const upFilled = !!upState.filled;
     const downFilled = !!downState.filled;
 
     if (!upFilled || !downFilled) {
-      await cancelOrders(this.settings, [orderIds[0]!, orderIds[1]!]).catch(() => {});
+      const toCancel = [orderIds[0], orderIds[1]].filter((id): id is string => !!id);
+      if (toCancel.length) await cancelOrders(this.settings, toCancel).catch(() => {});
+      this.emit("trade_failed", {
+        opportunity,
+        error: "Partial fill (one side only)",
+        orderIds: [orderIds[0], orderIds[1]],
+      });
       let filledTokenId: string | null = null;
       let filledSize = 0;
       if (upFilled && !downFilled) {
         filledTokenId = this.yesTokenId;
-        filledSize = upState.filled_size ?? reqSize;
+        filledSize = upState.filled_size ?? size;
       } else if (downFilled && !upFilled) {
         filledTokenId = this.noTokenId;
-        filledSize = downState.filled_size ?? reqSize;
+        filledSize = downState.filled_size ?? size;
       }
       if (filledTokenId && filledSize > 0) {
         try {
           const book = await this.getOrderBook(filledTokenId);
           const bestBid = book.best_bid as number | undefined;
           if (bestBid != null) {
-            await placeOrder(this.settings, {
-              side: "SELL",
-              tokenId: filledTokenId,
-              price: bestBid,
-              size: filledSize,
-              tif: "FAK",
-            });
+            console.log(`Unwinding ${filledSize} shares of token ${filledTokenId.slice(0, 10)}... at $${bestBid}`);
+            try {
+              await placeOrder(this.settings, {
+                side: "SELL",
+                tokenId: filledTokenId,
+                price: bestBid,
+                size: filledSize,
+                tif: "IOC",
+              });
+              console.log("Unwind successful with IOC");
+            } catch (iocErr) {
+              console.warn("IOC unwind failed, trying GTC:", iocErr);
+              await placeOrder(this.settings, {
+                side: "SELL",
+                tokenId: filledTokenId,
+                price: bestBid,
+                size: filledSize,
+                tif: "GTC",
+              });
+              console.log("Unwind placed as GTC order");
+            }
           }
         } catch (e) {
           console.error("Unwind attempt failed:", e);
@@ -356,10 +401,15 @@ export class Btc15mArbBot {
     }
 
     this.tradesExecuted += 1;
-    this.totalInvested += opportunity.total_investment;
-    this.totalSharesBought += opportunity.order_size * 2;
-    this.positions.push(opportunity);
+    this.totalInvested += actualInvestment;
+    this.totalSharesBought += size * 2;
+    this.positions.push({ ...opportunity, order_size: size, total_investment: actualInvestment });
     this.cachedBalance = await this.getBalance();
+    this.emit("trade_executed", {
+      opportunity: { ...opportunity, order_size: size, total_investment: actualInvestment },
+      orderIds: [orderIds[0]!, orderIds[1]!],
+      timestamp: new Date().toISOString(),
+    });
     this.showCurrentPositions();
   }
 
@@ -466,6 +516,7 @@ export class Btc15mArbBot {
   }
 
   async monitor(intervalSeconds: number = 30): Promise<void> {
+    this._stopRequested = false;
     if (this.settings.useWss) {
       await this.monitorWss();
       return;
@@ -485,6 +536,7 @@ export class Btc15mArbBot {
     let scanCount = 0;
     try {
       for (;;) {
+        if (this._stopRequested) break;
         scanCount += 1;
         console.log(`\n[Scan #${scanCount}] ${new Date().toTimeString().slice(0, 8)}`);
 
@@ -523,7 +575,9 @@ export class Btc15mArbBot {
   }
 
   async monitorWss(): Promise<void> {
+    this._stopRequested = false;
     while (true) {
+      if (this._stopRequested) break;
       if (this.getTimeRemaining() === "CLOSED") {
         await this.showFinalSummary();
         try {
@@ -562,6 +616,7 @@ export class Btc15mArbBot {
 
       try {
         for await (const [_assetId, _eventType] of client.run()) {
+          if (this._stopRequested) break;
           if (this.getTimeRemaining() === "CLOSED") {
             await this.showFinalSummary();
             try {
@@ -594,14 +649,23 @@ export class Btc15mArbBot {
           const upBook = this._bookFromState(yesBids, yesAsks) as Record<string, unknown>;
           const downBook = this._bookFromState(noBids, noAsks) as Record<string, unknown>;
 
+          const priceUp = upBook.best_ask as number | undefined;
+          const priceDown = downBook.best_ask as number | undefined;
+          const totalCost = priceUp != null && priceDown != null ? priceUp + priceDown : null;
+          this.emit("market_update", {
+            upPrice: priceUp,
+            downPrice: priceDown,
+            totalCost,
+            balance: this.cachedBalance,
+            timeRemaining: this.getTimeRemaining(),
+            marketSlug: this.marketSlug,
+          });
+
           const opportunity = this.checkArbitrage(upBook, downBook);
           if (opportunity) {
             await this.executeArbitrage(opportunity);
             continue;
           }
-
-          const priceUp = upBook.best_ask as number | undefined;
-          const priceDown = downBook.best_ask as number | undefined;
           const sizeUp = (upBook.ask_size as number) ?? 0;
           const sizeDown = (downBook.ask_size as number) ?? 0;
           if (priceUp != null && priceDown != null) {

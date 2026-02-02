@@ -162,14 +162,28 @@ export async function placeOrdersFast(
 
 /** Batch yanıtını tek tek sipariş yanıtlarına çevirir (Polymarket bazen dizi, bazen obje döner). */
 function normalizeOrderResults(result: unknown, expectedCount: number): Record<string, unknown>[] {
-  if (Array.isArray(result)) return result as Record<string, unknown>[];
+  if (Array.isArray(result)) {
+    const arr = result as Record<string, unknown>[];
+    if (arr.length >= expectedCount) return arr;
+    while (arr.length < expectedCount) arr.push({ error: "Missing response" });
+    return arr;
+  }
   if (result && typeof result === "object") {
     const r = result as Record<string, unknown>;
-    const ordersArr = (r.orders ?? r.results ?? r.data) as unknown[] | undefined;
-    if (Array.isArray(ordersArr)) return ordersArr as Record<string, unknown>[];
+    const ordersArr = (r.orders ?? r.results ?? r.data ?? r.successOrders) as unknown[] | undefined;
+    if (Array.isArray(ordersArr) && ordersArr.length > 0) {
+      const out = [...(ordersArr as Record<string, unknown>[])];
+      if (out.length >= expectedCount) return out;
+      const failed = (r.failedOrders as unknown[]) ?? [];
+      for (let i = out.length; i < expectedCount; i++) {
+        out.push((failed[i - out.length] as Record<string, unknown>) ?? { error: "Missing response" });
+      }
+      return out;
+    }
     const orderIds = r.orderIds ?? r.order_ids;
     if (Array.isArray(orderIds))
       return orderIds.map((id: unknown) => ({ orderID: id, orderId: id }));
+    if (r.orderID != null || r.orderId != null) return [r];
   }
   return [result as Record<string, unknown>];
 }
@@ -181,7 +195,12 @@ export function extractOrderId(result: Record<string, unknown> | unknown): strin
     const val = r[key];
     if (val != null) return typeof val === "string" ? val : String(val);
   }
-  for (const key of ["order", "data", "result"]) {
+  const order = r.order as Record<string, unknown> | undefined;
+  if (order && typeof order === "object") {
+    const oid = order.orderID ?? order.orderId ?? order.order_id ?? order.id;
+    if (oid != null) return typeof oid === "string" ? oid : String(oid);
+  }
+  for (const key of ["data", "result"]) {
     const nested = r[key];
     if (nested && typeof nested === "object") {
       const oid = extractOrderId(nested);

@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BTC 15m Arbitrage Bot</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <header class="header">
+    <h1>BTC 15m Arbitrage Bot</h1>
+    <div class="header-meta">
+      <span id="ws-status" class="badge badge-unknown">Bağlanıyor...</span>
+      <span id="market-slug" class="meta">—</span>
+      <span id="time-remaining" class="meta">—</span>
+    </div>
+  </header>
+
+  <main class="main">
+    <section class="controls card">
+      <h2>İşlem Kontrolü</h2>
+      <div class="controls-row">
+        <span id="bot-status" class="bot-status">Durduruldu</span>
+        <div class="btn-group">
+          <button type="button" id="btn-start" class="btn btn-start">Başlat</button>
+          <button type="button" id="btn-stop" class="btn btn-stop" disabled>Durdur</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="stats">
+      <div class="card">
+        <span class="card-label">Fırsat Sayısı</span>
+        <span id="stat-opportunities" class="card-value">0</span>
+      </div>
+      <div class="card">
+        <span class="card-label">İşlem Sayısı</span>
+        <span id="stat-trades" class="card-value">0</span>
+      </div>
+      <div class="card">
+        <span class="card-label">Toplam Yatırım</span>
+        <span id="stat-invested" class="card-value">$0.00</span>
+      </div>
+      <div class="card">
+        <span class="card-label">Beklenen Kar</span>
+        <span id="stat-profit" class="card-value profit">$0.00</span>
+      </div>
+    </section>
+
+    <section class="market-data card">
+      <h2>Canlı Piyasa</h2>
+      <div class="market-grid">
+        <div>
+          <span class="label">UP (Yes)</span>
+          <span id="live-up" class="value">—</span>
+        </div>
+        <div>
+          <span class="label">DOWN (No)</span>
+          <span id="live-down" class="value">—</span>
+        </div>
+        <div>
+          <span class="label">Toplam Maliyet</span>
+          <span id="live-total" class="value">—</span>
+        </div>
+        <div>
+          <span class="label">Bakiye</span>
+          <span id="live-balance" class="value">—</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="tables">
+      <div class="card table-card">
+        <h2>Son Fırsatlar (50)</h2>
+        <div class="table-wrap">
+          <table id="opportunities-table">
+            <thead>
+              <tr>
+                <th>Zaman</th>
+                <th>UP</th>
+                <th>DOWN</th>
+                <th>Toplam</th>
+                <th>Kar %</th>
+                <th>Yatırım</th>
+              </tr>
+            </thead>
+            <tbody id="opportunities-body"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card table-card">
+        <h2>İşlemler (Başarılı)</h2>
+        <div class="table-wrap">
+          <table id="trades-table">
+            <thead>
+              <tr>
+                <th>Zaman</th>
+                <th>UP</th>
+                <th>DOWN</th>
+                <th>Kar</th>
+                <th>Order ID (UP)</th>
+                <th>Order ID (DOWN)</th>
+              </tr>
+            </thead>
+            <tbody id="trades-body"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card table-card">
+        <h2>Başarısız İşlemler</h2>
+        <div class="table-wrap">
+          <table id="failed-table">
+            <thead>
+              <tr>
+                <th>Zaman</th>
+                <th>Hata</th>
+                <th>UP</th>
+                <th>DOWN</th>
+              </tr>
+            </thead>
+            <tbody id="failed-body"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script src="/app.js"></script>
+</body>
+</html>
