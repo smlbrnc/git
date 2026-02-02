@@ -1,5 +1,5 @@
 {
-  "name": "15min-btc-polymarket-arb-bot-ts",
+  "name": "15min-btc-polymarket",
   "version": "1.0.0",
   "description": "BTC 15-minute Polymarket arbitrage bot (TypeScript)",
   "main": "dist/index.js",
@@ -9,7 +9,9 @@
     "check-balance": "tsx src/checkBalance.ts",
     "check-config": "tsx src/checkConfig.ts",
     "create-api-keys": "tsx src/createApiKeys.ts",
-    "test-order": "tsx src/test-order.ts"
+    "test-order": "tsx src/test-order.ts",
+    "simple-order": "tsx src/simple-order.ts",
+    "get-token-id": "tsx src/get-token-id.ts"
   },
   "keywords": ["polymarket", "arbitrage", "btc", "15min"],
   "license": "MIT",

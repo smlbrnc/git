@@ -50,10 +50,7 @@ export function loadSettings(): Settings {
     apiSecret: getEnv("POLYMARKET_API_SECRET"),
     apiPassphrase: getEnv("POLYMARKET_API_PASSPHRASE"),
     privateKey: getEnv("POLYMARKET_PRIVATE_KEY"),
-    signatureType: (() => {
-      const val = parseInt(getEnv("POLYMARKET_SIGNATURE_TYPE", "1"), 10);
-      return val === 0 || val === 1 || val === 2 ? val : 1;
-    })(),
+    signatureType: parseInt(getEnv("POLYMARKET_SIGNATURE_TYPE", "1"), 10) || 1,
     funder: getEnv("POLYMARKET_FUNDER"),
     marketSlug: getEnv("POLYMARKET_MARKET_SLUG"),
     marketId: getEnv("POLYMARKET_MARKET_ID"),

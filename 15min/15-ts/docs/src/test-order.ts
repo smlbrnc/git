@@ -31,6 +31,7 @@ async function main(): Promise<void> {
   console.log("Piyasa:", slug);
   console.log("UP (Yes) token:", info.yesTokenId.slice(0, 20) + "...");
 
+  // 1 pay, 0.01$ limit alım (kitaba yazılır, hemen dolmaz)
   const price = 0.01;
   const size = 1;
 

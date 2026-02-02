@@ -14,13 +14,11 @@ import {
   type Trade,
 } from "@polymarket/clob-client";
 import type { Settings } from "./config";
-import axios from "axios";
 
 const HOST = "https://clob.polymarket.com";
 const CHAIN_ID = 137;
 
 let cachedClient: ClobClient | null = null;
-let interceptorInstalled = false;
 
 function getSignatureType(settings: Settings): 0 | 1 | 2 {
   const t = settings.signatureType;
@@ -38,9 +36,6 @@ export async function getClient(settings: Settings): Promise<ClobClient> {
   const signer = new Wallet(settings.privateKey.trim());
   const signatureType = getSignatureType(settings);
   const funderAddress = settings.funder?.trim() || undefined;
-
-  // SignatureType 2: POLY_ADDRESS her zaman signer, funder sadece order.maker'da kullanılır
-  // Library bunu otomatik yapıyor, interceptor'a gerek yok
 
   let creds: ApiKeyCreds;
   if (settings.apiKey?.trim() && settings.apiSecret?.trim() && settings.apiPassphrase?.trim()) {
@@ -100,7 +95,7 @@ export async function placeOrder(
     size,
     side: sideUp === "BUY" ? Side.BUY : Side.SELL,
   };
-  const order = await client.createOrder(userOrder, { negRisk: false });
+  const order = await client.createOrder(userOrder, { negRisk: true });
   const orderType = tifToOrderType(tif);
   return (await client.postOrder(order, orderType)) as Record<string, unknown>;
 }
@@ -137,7 +132,7 @@ export async function placeOrdersFast(
       size: o.size,
       side: sideUp === "BUY" ? Side.BUY : Side.SELL,
     };
-    const order = await client.createOrder(userOrder, { negRisk: false });
+    const order = await client.createOrder(userOrder, { negRisk: true });
     signedOrders.push(order);
   }
 

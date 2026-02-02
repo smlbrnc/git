@@ -1,21 +1,11 @@
 /**
- * Polymarket USDC bakiye kontrolü.
- * Sadece .env'den okunur: POLYMARKET_API_KEY, POLYMARKET_API_SECRET, POLYMARKET_API_PASSPHRASE.
- * Bu istekte private key ile API key alınmaz / türetilmez (createOrDeriveApiKey çağrılmaz).
+ * Polymarket USDC bakiye ve cüzdan kontrolü.
  * Çalıştırma: npx tsx src/checkBalance.ts
  */
 
 import { Wallet } from "@ethersproject/wallet";
 import { loadSettings } from "./config";
 import { getBalance } from "./trading";
-
-function hasEnvApiCreds(settings: ReturnType<typeof loadSettings>): boolean {
-  return !!(
-    settings.apiKey?.trim() &&
-    settings.apiSecret?.trim() &&
-    settings.apiPassphrase?.trim()
-  );
-}
 
 async function main(): Promise<void> {
   const settings = loadSettings();
@@ -26,23 +16,18 @@ async function main(): Promise<void> {
   console.log("=".repeat(70));
   console.log(`Host: ${host}`);
   console.log(`Private Key: ${settings.privateKey ? "✓" : "✗"}`);
-  console.log(`POLYMARKET_API_KEY: ${settings.apiKey ? "✓" : "✗"}`);
-  console.log(`POLYMARKET_API_SECRET: ${settings.apiSecret ? "✓" : "✗"}`);
-  console.log(`POLYMARKET_API_PASSPHRASE: ${settings.apiPassphrase ? "✓" : "✗"}`);
+  console.log(`API Key: ${settings.apiKey ? "✓" : "✗"}`);
   console.log("=".repeat(70));
 
   if (!settings.privateKey?.trim()) {
     console.error("POLYMARKET_PRIVATE_KEY gerekli.");
     process.exit(1);
   }
-  if (!hasEnvApiCreds(settings)) {
-    console.error("Bakiye için .env'de POLYMARKET_API_KEY, POLYMARKET_API_SECRET, POLYMARKET_API_PASSPHRASE dolu olmalı (private key ile API key alınmaz).");
-    process.exit(1);
-  }
 
   try {
     const signer = new Wallet(settings.privateKey.trim());
     const address = await signer.getAddress();
+
     console.log("\nAdres:", address);
     const balance = await getBalance(settings);
     console.log("💰 USDC Bakiye: $", balance.toFixed(6));

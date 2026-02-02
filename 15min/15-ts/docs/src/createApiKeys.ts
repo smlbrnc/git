@@ -7,7 +7,6 @@
 import { Wallet } from "@ethersproject/wallet";
 import { ClobClient } from "@polymarket/clob-client";
 import { loadSettings } from "./config";
-import axios from "axios";
 
 const HOST = "https://clob.polymarket.com";
 const CHAIN_ID = 137;
@@ -27,23 +26,8 @@ async function main(): Promise<void> {
     : 1;
   const funderAddress = settings.funder?.trim() || undefined;
 
-  // Not: signatureType 2 (Gnosis Safe) otomatik olarak funder kullanır
-
   const client = new ClobClient(HOST, CHAIN_ID, signer, undefined, signatureType, funderAddress);
-  
-  // Proxy wallet için yeni nonce ile API key oluştur
-  const nonce = funderAddress ? 3 : 0; // Funder varsa nonce=3, yoksa 0
-  console.log(`\nNonce ${nonce} ile API key oluşturuluyor...`);
-  
-  let creds;
-  try {
-    creds = await client.createApiKey(nonce);
-    console.log("✓ Yeni API key oluşturuldu");
-  } catch (e) {
-    console.log("Create başarısız, derive deneniyor...");
-    creds = await client.deriveApiKey(nonce);
-    console.log("✓ Mevcut API key türetildi");
-  }
+  const creds = await client.createOrDeriveApiKey();
 
   console.log("API Key:", creds.key);
   console.log("Secret:", creds.secret);
