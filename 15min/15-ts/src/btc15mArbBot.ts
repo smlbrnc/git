@@ -542,18 +542,26 @@ export class Btc15mArbBot extends EventEmitter {
 
         if (this.getTimeRemaining() === "CLOSED") {
           await this.showFinalSummary();
-          try {
-            const newSlug = await getActiveBtc15mSlug();
-            if (newSlug !== this.marketSlug) {
-              const next = await Btc15mArbBot.create(this.settings);
-              Object.assign(this, next);
-              scanCount = 0;
-              continue;
+          console.log("\n⏰ Market kapandı. Yeni 15 dakikalık market bekleniyor...");
+          
+          // Yeni market bulunana kadar bekle
+          while (!this._stopRequested) {
+            try {
+              const newSlug = await getActiveBtc15mSlug();
+              if (newSlug !== this.marketSlug) {
+                console.log(`\n🔄 Yeni market bulundu: ${newSlug}`);
+                const next = await Btc15mArbBot.create(this.settings);
+                Object.assign(this, next);
+                scanCount = 0;
+                console.log(`✅ Yeni market'e geçildi. Arbitraj taraması devam ediyor...\n`);
+                break; // Yeni market bulundu, ana döngüye devam et
+              }
+            } catch (err) {
+              console.log("Yeni market kontrol hatası:", err);
             }
-          } catch {
-            /* use same slug or retry later */
+            console.log("Henüz yeni market yok, 30 saniye sonra tekrar denenecek...");
+            await sleep(30000);
           }
-          await sleep(30000);
           continue;
         }
 
@@ -619,18 +627,33 @@ export class Btc15mArbBot extends EventEmitter {
           if (this._stopRequested) break;
           if (this.getTimeRemaining() === "CLOSED") {
             await this.showFinalSummary();
+            console.log("\n⏰ Market kapandı. Yeni 15 dakikalık market bekleniyor...");
+            
+            // WSS döngüsünden çık (break ile generator durur)
+            break;
+          }
+          
+          // Ana döngü dışında yeni market kontrolü
+        }
+        
+        // Market kapandıysa ve stop istenmemişse, yeni market bekle
+        if (!this._stopRequested && this.getTimeRemaining() === "CLOSED") {
+          while (!this._stopRequested) {
             try {
               const newSlug = await getActiveBtc15mSlug();
               if (newSlug !== this.marketSlug) {
+                console.log(`\n🔄 Yeni market bulundu: ${newSlug}`);
                 const next = await Btc15mArbBot.create(this.settings);
                 Object.assign(this, next);
-                break;
+                console.log(`✅ Yeni market'e geçildi. WSS yeniden başlatılıyor...\n`);
+                // Yeni market ile WSS'i yeniden başlat (recursive call)
+                return this.monitorWss();
               }
-            } catch {
-              /* */
+            } catch (err) {
+              console.log("Yeni market kontrol hatası:", err);
             }
-            await sleep(10000);
-            break;
+            console.log("Henüz yeni market yok, 30 saniye sonra tekrar denenecek...");
+            await sleep(30000);
           }
 
           const now = Date.now() / 1000;
