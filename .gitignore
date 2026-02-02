@@ -27,3 +27,33 @@ venv/
 # Streamlit (proje .streamlit; config.toml repoda kalır)
 .streamlit/*
 !.streamlit/config.toml
+
+# Node.js / TypeScript
+node_modules/
+dist/
+build/
+*.tsbuildinfo
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Next.js
+.next/
+out/
+
+# OS dosyaları
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+
+# IDE
+.vscode/
+.idea/
+*.code-workspace
+
+# Geçici dosyalar
+tmp/
+temp/
+*.tmp
