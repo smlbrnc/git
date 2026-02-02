@@ -1,3 +1,6 @@
+# Nested git repos (ayrı yönetilecek)
+polymarket-arbitrage-node/
+
 # Ortam ve gizlilik (SOP: .env git'e eklenmez)
 .env
 .env.local
